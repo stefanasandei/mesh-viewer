@@ -4,3 +4,9 @@ project(mesh_viewer)
 set(CMAKE_CXX_STANDARD 23)
 
 add_executable(mesh_viewer src/main.cpp)
+
+add_subdirectory(lib)
+
+target_link_libraries(mesh_viewer PRIVATE lib)
+
+include_directories(src)
