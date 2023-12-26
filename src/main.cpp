@@ -3,6 +3,8 @@
 int main() {
   init_globals();
 
+  global.renderer->InitGeometry();
+
   while (!global.window->ShouldClose()) {
     global.window->PollEvents();
 

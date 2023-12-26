@@ -24,7 +24,15 @@ add_executable(mesh_viewer src/main.cpp
         src/gfx/allocated_image.cpp
         src/gfx/vma_impl.cpp
         src/gfx/imgui_layer.hpp
-        src/gfx/imgui_layer.cpp)
+        src/gfx/imgui_layer.cpp
+        src/gfx/pipeline_builder.hpp
+        src/gfx/pipeline_builder.cpp
+        src/gfx/shader.hpp
+        src/gfx/shader.cpp
+        src/gfx/allocated_buffer.hpp
+        src/gfx/allocated_buffer.cpp
+        src/gfx/mesh.hpp
+        src/gfx/mesh.cpp)
 
 add_subdirectory(lib)
 

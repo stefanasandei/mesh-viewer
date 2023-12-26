@@ -6,6 +6,7 @@
 
 #include "gfx/context.hpp"
 #include "gfx/allocated_image.hpp"
+#include "gfx/mesh.hpp"
 
 namespace gfx {
 
@@ -27,6 +28,7 @@ class Renderer {
   ~Renderer();
 
   void Draw();
+  void InitGeometry();
 
   void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 
@@ -35,9 +37,11 @@ class Renderer {
   void InitSyncStructures();
   void InitVma();
   void InitDrawTarget();
+  void InitPipeline();
 
   void DrawBackground(vk::CommandBuffer cmd, vk::Image target);
   void DrawImGui(vk::CommandBuffer cmd, vk::ImageView target);
+  void DrawGeometry(vk::CommandBuffer cmd, vk::ImageView target);
 
   FrameData& GetFrame();
 
@@ -49,6 +53,10 @@ class Renderer {
   VmaAllocator m_Allocator;
 
   AllocatedImage m_DrawImage;
+  GPUMeshBuffers m_Rectangle;
+
+  vk::PipelineLayout m_GeometryPipelineLayout;
+  vk::Pipeline m_GeometryPipeline;
 };
 
 }  // namespace gfx

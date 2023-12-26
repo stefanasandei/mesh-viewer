@@ -6,6 +6,9 @@
 
 #include "global.hpp"
 
+#include "gfx/pipeline_builder.hpp"
+#include "gfx/shader.hpp"
+
 #include <imgui_impl_vulkan.h>
 
 namespace gfx {
@@ -17,6 +20,7 @@ Renderer::Renderer() {
   InitSyncStructures();
   InitVma();
   InitDrawTarget();
+  InitPipeline();
 }
 
 Renderer::~Renderer() {
@@ -71,6 +75,12 @@ void Renderer::Draw() {
 
   TransitionImage(GetFrame().MainCmdBuffer, m_DrawImage.Image,
                   vk::ImageLayout::eGeneral,
+                  vk::ImageLayout::eColorAttachmentOptimal);
+
+  DrawGeometry(GetFrame().MainCmdBuffer, m_DrawImage.View);
+
+  TransitionImage(GetFrame().MainCmdBuffer, m_DrawImage.Image,
+                  vk::ImageLayout::eColorAttachmentOptimal,
                   vk::ImageLayout::eTransferSrcOptimal);
 
   TransitionImage(GetFrame().MainCmdBuffer, current_img,
@@ -87,8 +97,8 @@ void Renderer::Draw() {
   DrawImGui(GetFrame().MainCmdBuffer, current_img_view);
 
   TransitionImage(GetFrame().MainCmdBuffer, current_img,
-                   vk::ImageLayout::eColorAttachmentOptimal,
-                   vk::ImageLayout::ePresentSrcKHR);
+                  vk::ImageLayout::eColorAttachmentOptimal,
+                  vk::ImageLayout::ePresentSrcKHR);
 
   // close the command buffer
   GetFrame().MainCmdBuffer.end();
@@ -232,7 +242,8 @@ FrameData& Renderer::GetFrame() {
   return m_Frames[m_FramesCount % FRAME_COUNT];
 }
 
-void Renderer::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function) {
+void Renderer::ImmediateSubmit(
+    std::function<void(VkCommandBuffer cmd)>&& function) {
   VK_CHECK(global.context->Device.resetFences(1, &m_Immediate.RenderFence));
   m_Immediate.MainCmdBuffer.reset();
 
@@ -254,9 +265,11 @@ void Renderer::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& functi
   submit.setCommandBufferInfoCount(1);
   submit.setPCommandBufferInfos(&cmd_info);
 
-  VK_CHECK(global.context->GraphicsQueue.submit2(1, &submit, m_Immediate.RenderFence));
+  VK_CHECK(global.context->GraphicsQueue.submit2(1, &submit,
+                                                 m_Immediate.RenderFence));
 
-  VK_CHECK(global.context->Device.waitForFences(1, &m_Immediate.RenderFence, true, 9999999999));
+  VK_CHECK(global.context->Device.waitForFences(1, &m_Immediate.RenderFence,
+                                                true, 9999999999));
 }
 
 void Renderer::DrawImGui(vk::CommandBuffer cmd, vk::ImageView target) {
@@ -267,8 +280,7 @@ void Renderer::DrawImGui(vk::CommandBuffer cmd, vk::ImageView target) {
   color_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
 
   vk::Rect2D rect;
-  rect.setExtent(
-      {m_DrawImage.Extent.width, m_DrawImage.Extent.height});
+  rect.setExtent({m_DrawImage.Extent.width, m_DrawImage.Extent.height});
 
   vk::RenderingInfo render_info;
   render_info.setRenderArea(rect);
@@ -282,6 +294,136 @@ void Renderer::DrawImGui(vk::CommandBuffer cmd, vk::ImageView target) {
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
   cmd.endRendering();
+}
+
+void Renderer::InitPipeline() {
+  vk::ShaderModule triangle_vertex_shader;
+  util::error::ErrNDie(
+      !LoadShaderModule("./res/shaders/compiled/basic_vert.spv",
+                        global.context->Device, &triangle_vertex_shader),
+      "Failed to load vertex shader.");
+
+  vk::ShaderModule triangle_frag_shader;
+  util::error::ErrNDie(
+      !LoadShaderModule("./res/shaders/compiled/basic_frag.spv",
+                        global.context->Device, &triangle_frag_shader),
+      "Failed to load fragment shader.");
+
+  vk::PushConstantRange buffer_range;
+  buffer_range.setOffset(0);
+  buffer_range.setSize(sizeof(GPUDrawPushConstants));
+  buffer_range.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+
+  vk::PipelineLayoutCreateInfo layout_info;
+  layout_info.setPushConstantRangeCount(1);
+  layout_info.setPPushConstantRanges(&buffer_range);
+
+  VK_CHECK(global.context->Device.createPipelineLayout(
+      &layout_info, nullptr, &m_GeometryPipelineLayout));
+
+  PipelineBuilder pipelineBuilder;
+
+  pipelineBuilder.pipeline_layout = m_GeometryPipelineLayout;
+  pipelineBuilder.SetShaders(triangle_vertex_shader, triangle_frag_shader);
+  pipelineBuilder.SetInputTopology(vk::PrimitiveTopology::eTriangleList);
+  pipelineBuilder.SetPolygonMode(vk::PolygonMode::eFill);
+  pipelineBuilder.SetCullMode(vk::CullModeFlagBits::eNone,
+                              vk::FrontFace::eClockwise);
+  pipelineBuilder.SetMultisamplingNone();
+  pipelineBuilder.DisableBlending();
+  pipelineBuilder.DisableDepthTest();
+  pipelineBuilder.SetColorAttachmentFormat(m_DrawImage.Format);
+  pipelineBuilder.SetDepthFormat(vk::Format::eUndefined);
+
+  // finally build the pipeline
+  m_GeometryPipeline = pipelineBuilder.build(global.context->Device);
+
+  global.context->Device.destroyShaderModule(triangle_frag_shader);
+  global.context->Device.destroyShaderModule(triangle_vertex_shader);
+
+  global.context->DeletionQueue.Push([&]() {
+    global.context->Device.destroyPipelineLayout(m_GeometryPipelineLayout);
+    global.context->Device.destroyPipeline(m_GeometryPipeline);
+  });
+}
+
+void Renderer::DrawGeometry(vk::CommandBuffer cmd, vk::ImageView target) {
+  vk::RenderingAttachmentInfo color_attachment;
+  color_attachment.setImageView(target);
+  color_attachment.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal);
+  color_attachment.setLoadOp(vk::AttachmentLoadOp::eLoad);
+  color_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
+
+  vk::Offset2D offset;
+  offset.setX(0);
+  offset.setY(0);
+
+  vk::Rect2D scissor;
+  scissor.setOffset(offset);
+  scissor.setExtent({m_DrawImage.Extent.width, m_DrawImage.Extent.height});
+
+  vk::RenderingInfo render_info;
+  render_info.setRenderArea(scissor);
+  render_info.setLayerCount(1);
+  render_info.setViewMask(0);
+  render_info.setColorAttachmentCount(1);
+  render_info.setPColorAttachments(&color_attachment);
+
+  cmd.beginRendering(&render_info);
+
+  cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_GeometryPipeline);
+
+  GPUDrawPushConstants push_constants{};
+  push_constants.worldMatrix = glm::mat4{1.f};
+  push_constants.vertexBuffer = m_Rectangle.vertexBufferAddress;
+
+  cmd.pushConstants(m_GeometryPipelineLayout, vk::ShaderStageFlagBits::eVertex,
+                    0, sizeof(GPUDrawPushConstants), &push_constants);
+  cmd.bindIndexBuffer(m_Rectangle.indexBuffer.Buffer, 0,
+                      vk::IndexType::eUint32);
+
+  vk::Viewport viewport;
+  viewport.setX(0);
+  viewport.setY(0);
+  viewport.setWidth(m_DrawImage.Extent.width);
+  viewport.setHeight(m_DrawImage.Extent.height);
+  viewport.setMinDepth(0.0f);
+  viewport.setMaxDepth(1.0f);
+
+  cmd.setViewport(0, 1, &viewport);
+
+  cmd.setScissor(0, 1, &scissor);
+
+  cmd.drawIndexed(6, 1, 0, 0, 0);
+
+  cmd.endRendering();
+}
+
+// TODO: let the user pass the geometry
+void Renderer::InitGeometry() {
+  std::array<Vertex, 4> rect_vertices{};
+
+  rect_vertices[0].position = {0.5, -0.5, 0};
+  rect_vertices[1].position = {0.5, 0.5, 0};
+  rect_vertices[2].position = {-0.5, -0.5, 0};
+  rect_vertices[3].position = {-0.5, 0.5, 0};
+
+  rect_vertices[0].color = {0, 0, 1, 1};
+  rect_vertices[1].color = {1, 0.0, 1, 1};
+  rect_vertices[2].color = {1, 0, 0, 1};
+  rect_vertices[3].color = {0, 1, 0, 1};
+
+  std::array<uint32_t, 6> rect_indices{};
+
+  rect_indices[0] = 0;
+  rect_indices[1] = 1;
+  rect_indices[2] = 2;
+
+  rect_indices[3] = 2;
+  rect_indices[4] = 1;
+  rect_indices[5] = 3;
+
+  m_Rectangle = UploadMesh(m_Allocator, rect_indices, rect_vertices);
 }
 
 }  // namespace gfx
