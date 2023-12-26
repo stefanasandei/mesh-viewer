@@ -6,12 +6,11 @@
 
 namespace util::error {
 
-    void ErrNDie(bool cond, const std::string &msg) {
-        if (!cond)
-            return;
+void ErrNDie(bool cond, const std::string &msg) {
+  if (!cond) return;
 
-        std::cout << "Error: " << msg << '\n';
-        std::exit(0);
-    }
-
+  std::cout << "Error: " << msg << '\n';
+  std::exit(0);
 }
+
+}  // namespace util::error

@@ -1,11 +1,13 @@
-#include "platform/window.h"
+#include "global.hpp"
 
 int main() {
-    platform::Window window({1600, 900}, "Mesh Viewer");
+  init_globals();
 
-    while(!window.ShouldClose()) {
-        window.PollEvents();
-    }
+  while (!global.window->ShouldClose()) {
+    global.window->PollEvents();
 
-    return 0;
+    global.renderer->Draw();
+  }
+
+  return 0;
 }

@@ -8,6 +8,6 @@
 
 namespace util::error {
 
-    void ErrNDie(bool cond, const std::string &msg);
+void ErrNDie(bool cond, const std::string &msg);
 
 }

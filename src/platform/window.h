@@ -8,19 +8,19 @@
 
 namespace platform {
 
-    class Window {
-    public:
-        Window(glm::ivec2 size, const std::string& title);
-        ~Window();
+class Window {
+ public:
+  Window(glm::ivec2 size, const std::string& title);
+  ~Window();
 
-        void PollEvents() const;
-        bool ShouldClose() const;
+  void PollEvents() const;
+  bool ShouldClose() const;
 
-        GLFWwindow* GetNative();
-        glm::ivec2 GetSize();
+  GLFWwindow* GetNative();
+  glm::ivec2 GetSize();
 
-    private:
-        GLFWwindow* m_Window;
-    };
+ private:
+  GLFWwindow* m_Window;
+};
 
-}
+}  // namespace platform

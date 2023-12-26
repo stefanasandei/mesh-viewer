@@ -7,7 +7,22 @@ add_executable(mesh_viewer src/main.cpp
         src/platform/window.h
         src/util/std.hpp
         src/util/error.cpp
-        src/platform/window.cpp)
+        src/platform/window.cpp
+        src/gfx/gfx.hpp
+        src/gfx/renderer.hpp
+        src/gfx/vulkan_utils.hpp
+        src/gfx/context.hpp
+        src/global.hpp
+        src/gfx/renderer.cpp
+        src/global.cpp
+        src/gfx/context.cpp
+        src/memory/deletion_queue.hpp
+        src/memory/deletion_queue.cpp
+        src/gfx/swapchain.hpp
+        src/gfx/swapchain.cpp
+        src/gfx/allocated_image.hpp
+        src/gfx/allocated_image.cpp
+        src/gfx/vma_impl.cpp)
 
 add_subdirectory(lib)
 
