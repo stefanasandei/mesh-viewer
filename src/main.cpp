@@ -6,6 +6,13 @@ int main() {
   while (!global.window->ShouldClose()) {
     global.window->PollEvents();
 
+    global.imgui->AddPanel([]() {
+      ImGui::Begin("Control Panel");
+      ImGui::Text("Hello world!");
+      ImGui::End();
+    });
+
+    global.imgui->Draw();
     global.renderer->Draw();
   }
 

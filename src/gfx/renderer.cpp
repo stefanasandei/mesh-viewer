@@ -6,6 +6,8 @@
 
 #include "global.hpp"
 
+#include <imgui_impl_vulkan.h>
+
 namespace gfx {
 
 Renderer::Renderer() {
@@ -80,7 +82,13 @@ void Renderer::Draw() {
 
   TransitionImage(GetFrame().MainCmdBuffer, current_img,
                   vk::ImageLayout::eTransferDstOptimal,
-                  vk::ImageLayout::ePresentSrcKHR);
+                  vk::ImageLayout::eColorAttachmentOptimal);
+
+  DrawImGui(GetFrame().MainCmdBuffer, current_img_view);
+
+  TransitionImage(GetFrame().MainCmdBuffer, current_img,
+                   vk::ImageLayout::eColorAttachmentOptimal,
+                   vk::ImageLayout::ePresentSrcKHR);
 
   // close the command buffer
   GetFrame().MainCmdBuffer.end();
@@ -158,6 +166,18 @@ void Renderer::InitCommands() {
     VK_CHECK(global.context->Device.allocateCommandBuffers(
         &cmd_alloc_info, &m_Frames[i].MainCmdBuffer));
   }
+
+  // allocate the command buffer for the immediate mode
+  VK_CHECK(global.context->Device.createCommandPool(&cmd_pool_info, nullptr,
+                                                    &m_Immediate.CmdPool));
+
+  vk::CommandBufferAllocateInfo cmd_alloc_info;
+  cmd_alloc_info.setCommandPool(m_Immediate.CmdPool);
+  cmd_alloc_info.setCommandBufferCount(1);
+  cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary);
+
+  VK_CHECK(global.context->Device.allocateCommandBuffers(
+      &cmd_alloc_info, &m_Immediate.MainCmdBuffer));
 }
 
 void Renderer::InitSyncStructures() {
@@ -175,6 +195,9 @@ void Renderer::InitSyncStructures() {
     VK_CHECK(global.context->Device.createSemaphore(
         &semaphore_info, nullptr, &m_Frames[i].RenderSemaphore));
   }
+
+  VK_CHECK(global.context->Device.createFence(&fence_info, nullptr,
+                                              &m_Immediate.RenderFence));
 }
 
 void Renderer::InitVma() {
@@ -207,6 +230,58 @@ void Renderer::InitDrawTarget() {
 
 FrameData& Renderer::GetFrame() {
   return m_Frames[m_FramesCount % FRAME_COUNT];
+}
+
+void Renderer::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function) {
+  VK_CHECK(global.context->Device.resetFences(1, &m_Immediate.RenderFence));
+  m_Immediate.MainCmdBuffer.reset();
+
+  vk::CommandBuffer cmd = m_Immediate.MainCmdBuffer;
+  vk::CommandBufferBeginInfo cmd_begin_info;
+  cmd_begin_info.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+  VK_CHECK(cmd.begin(&cmd_begin_info));
+
+  function(cmd);
+
+  cmd.end();
+
+  vk::CommandBufferSubmitInfo cmd_info;
+  cmd_info.setCommandBuffer(cmd);
+  cmd_info.setDeviceMask(0);
+
+  vk::SubmitInfo2 submit;
+  submit.setCommandBufferInfoCount(1);
+  submit.setPCommandBufferInfos(&cmd_info);
+
+  VK_CHECK(global.context->GraphicsQueue.submit2(1, &submit, m_Immediate.RenderFence));
+
+  VK_CHECK(global.context->Device.waitForFences(1, &m_Immediate.RenderFence, true, 9999999999));
+}
+
+void Renderer::DrawImGui(vk::CommandBuffer cmd, vk::ImageView target) {
+  vk::RenderingAttachmentInfo color_attachment;
+  color_attachment.setImageView(target);
+  color_attachment.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal);
+  color_attachment.setLoadOp(vk::AttachmentLoadOp::eLoad);
+  color_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
+
+  vk::Rect2D rect;
+  rect.setExtent(
+      {m_DrawImage.Extent.width, m_DrawImage.Extent.height});
+
+  vk::RenderingInfo render_info;
+  render_info.setRenderArea(rect);
+  render_info.setLayerCount(1);
+  render_info.setViewMask(0);
+  render_info.setColorAttachmentCount(1);
+  render_info.setPColorAttachments(&color_attachment);
+
+  cmd.beginRendering(&render_info);
+
+  ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+  cmd.endRendering();
 }
 
 }  // namespace gfx

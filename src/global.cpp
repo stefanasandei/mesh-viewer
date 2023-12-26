@@ -16,4 +16,6 @@ void init_globals() {
   global.swapchain = std::make_unique<gfx::Swapchain>();
 
   global.renderer = std::make_unique<gfx::Renderer>();
+
+  global.imgui = std::make_unique<gfx::ImGUILayer>();
 }

@@ -28,6 +28,8 @@ class Renderer {
 
   void Draw();
 
+  void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
+
  private:
   void InitCommands();
   void InitSyncStructures();
@@ -35,11 +37,13 @@ class Renderer {
   void InitDrawTarget();
 
   void DrawBackground(vk::CommandBuffer cmd, vk::Image target);
+  void DrawImGui(vk::CommandBuffer cmd, vk::ImageView target);
 
   FrameData& GetFrame();
 
  private:
   uint64_t m_FramesCount;
+  FrameData m_Immediate;
   std::array<FrameData, FRAME_COUNT> m_Frames;
 
   VmaAllocator m_Allocator;

@@ -22,7 +22,9 @@ add_executable(mesh_viewer src/main.cpp
         src/gfx/swapchain.cpp
         src/gfx/allocated_image.hpp
         src/gfx/allocated_image.cpp
-        src/gfx/vma_impl.cpp)
+        src/gfx/vma_impl.cpp
+        src/gfx/imgui_layer.hpp
+        src/gfx/imgui_layer.cpp)
 
 add_subdirectory(lib)
 
