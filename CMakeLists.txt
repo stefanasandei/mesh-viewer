@@ -32,7 +32,9 @@ add_executable(mesh_viewer src/main.cpp
         src/gfx/allocated_buffer.hpp
         src/gfx/allocated_buffer.cpp
         src/gfx/mesh.hpp
-        src/gfx/mesh.cpp)
+        src/gfx/mesh.cpp
+        src/util/camera.hpp
+        src/util/camera.cpp)
 
 add_subdirectory(lib)
 

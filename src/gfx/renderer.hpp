@@ -29,7 +29,6 @@ class Renderer {
 
   void Draw();
 
-  void InitGeometry();
   void AddGeometry(const std::vector<std::shared_ptr<MeshAsset>>& geometry);
   void SetMeshIndex(int index);
 
@@ -47,6 +46,8 @@ class Renderer {
   void DrawBackground(vk::CommandBuffer cmd, vk::Image target);
   void DrawImGui(vk::CommandBuffer cmd, vk::ImageView target);
   void DrawGeometry(vk::CommandBuffer cmd);
+
+  void Resize();
 
   FrameData& GetFrame();
 

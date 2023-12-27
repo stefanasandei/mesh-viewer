@@ -9,6 +9,14 @@
 namespace gfx {
 
 Swapchain::Swapchain() {
+  Init();
+
+  global.context->DeletionQueue.Push([&]() { Shutdown(); });
+}
+
+Swapchain::~Swapchain() {}
+
+void Swapchain::Init() {
   vkb::SwapchainBuilder swapchain_builder(global.context->PhysicalDevice,
                                           global.context->Device,
                                           global.context->Surface);
@@ -27,13 +35,7 @@ Swapchain::Swapchain() {
   ImageViews = vkbSwapchain.get_image_views().value();
 
   ImageFormat = vkbSwapchain.image_format;
-
-  global.context->DeletionQueue.Push([&]() {
-    Shutdown();
-  });
 }
-
-Swapchain::~Swapchain() {}
 
 void Swapchain::Shutdown() {
   for (auto& image_view : ImageViews) {

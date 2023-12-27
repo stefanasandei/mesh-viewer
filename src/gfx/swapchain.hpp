@@ -13,6 +13,7 @@ class Swapchain {
   Swapchain();
   ~Swapchain();
 
+  void Init();
   void Shutdown();
 
  public:

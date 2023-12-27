@@ -141,4 +141,17 @@ void PipelineBuilder::EnableDepthTest(bool depth_write_enable,
   depth_stencil.setMaxDepthBounds(1.0f);
 }
 
+void PipelineBuilder::EnableBlendingAdditive() {
+  color_blend_attachment.setColorWriteMask(
+      vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
+  color_blend_attachment.setBlendEnable(VK_TRUE);
+  color_blend_attachment.setSrcColorBlendFactor(vk::BlendFactor::eOne);
+  color_blend_attachment.setDstColorBlendFactor(vk::BlendFactor::eDstAlpha);
+  color_blend_attachment.setColorBlendOp(vk::BlendOp::eAdd);
+  color_blend_attachment.setSrcAlphaBlendFactor(vk::BlendFactor::eOne);
+  color_blend_attachment.setDstAlphaBlendFactor(vk::BlendFactor::eZero);
+  color_blend_attachment.setAlphaBlendOp(vk::BlendOp::eAdd);
+}
+
 }  // namespace gfx

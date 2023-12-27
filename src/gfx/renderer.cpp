@@ -31,6 +31,9 @@ Renderer::Renderer() {
 Renderer::~Renderer() {
   global.context->Device.waitIdle();
 
+  m_DrawImage.Destroy();
+  m_DepthImage.Destroy();
+
   global.context->DeletionQueue.Flush();
 
   for (std::size_t i = 0; i < FRAME_COUNT; i++) {
@@ -55,9 +58,13 @@ void Renderer::Draw() {
   uint32_t swapchain_image_index = 0;
   vk::SwapchainKHR native_swapchain =
       *static_cast<vk::SwapchainKHR*>(&global.swapchain->NativeSwapchain);
-  VK_CHECK(global.context->Device.acquireNextImageKHR(
+  vk::Result res = global.context->Device.acquireNextImageKHR(
       native_swapchain, 1000000000, GetFrame().SwapchainSemaphore, nullptr,
-      &swapchain_image_index));
+      &swapchain_image_index);
+  if (res == vk::Result::eErrorOutOfDateKHR) {
+    Resize();
+    return;
+  }
 
   vk::Image current_img = global.swapchain->Images[swapchain_image_index];
 
@@ -148,22 +155,23 @@ void Renderer::Draw() {
   present_info.setPWaitSemaphores(&GetFrame().RenderSemaphore);
   present_info.setPImageIndices(&swapchain_image_index);
 
-  VK_CHECK(global.context->GraphicsQueue.presentKHR(&present_info));
+  vk::Result presentResult =
+      global.context->GraphicsQueue.presentKHR(&present_info);
+  if (presentResult == vk::Result::eErrorOutOfDateKHR) {
+    Resize();
+    return;
+  }
 
   m_FramesCount++;
 }
 
 void Renderer::DrawBackground(vk::CommandBuffer cmd, vk::Image target) {
-  // make a clear-color from frame number. This will flash with a 120 frame
-  // period.
   vk::ClearColorValue clearValue;
-  float flash = abs(sin(m_FramesCount / 120.f));
-  clearValue.setFloat32({flash, 0.8f, 1.0f, 1.0f});
+  clearValue.setFloat32({0.1f, 0.1f, 0.1f, 1.0f});
 
   vk::ImageSubresourceRange clearRange =
       ImageSubresourceRange(vk::ImageAspectFlagBits::eColor);
 
-  // clear image
   cmd.clearColorImage(target, vk::ImageLayout::eGeneral, &clearValue, 1,
                       &clearRange);
 }
@@ -253,11 +261,6 @@ void Renderer::InitDrawTarget() {
 
   m_DepthImage.Create(global.window->GetSize(), vk::Format::eD32Sfloat,
                       depthImageUsages);
-
-  global.context->DeletionQueue.Push([&]() {
-    m_DrawImage.Destroy();
-    m_DepthImage.Destroy();
-  });
 }
 
 FrameData& Renderer::GetFrame() {
@@ -406,16 +409,8 @@ void Renderer::DrawGeometry(vk::CommandBuffer cmd) {
 
   cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_GeometryPipeline);
 
-  glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, 0, -4});
-  glm::mat4 projection = glm::perspective(
-      glm::radians(45.f),
-      (float)m_DrawImage.Extent.width / (float)m_DrawImage.Extent.height,
-      0.1f, 10000.0f);
-  projection[1][1] *= -1.0f;
-  glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, -5.0f, 0.0f));
-
   GPUDrawPushConstants push_constants{};
-  push_constants.worldMatrix = projection * view * model;
+  push_constants.worldMatrix = global.camera->GetMVP();
   push_constants.vertexBuffer =
       m_Meshes[m_MeshIndex]->meshBuffers.vertexBufferAddress;
 
@@ -443,39 +438,23 @@ void Renderer::DrawGeometry(vk::CommandBuffer cmd) {
   cmd.endRendering();
 }
 
-void Renderer::InitGeometry() {
-  std::array<Vertex, 4> rect_vertices{};
-
-  rect_vertices[0].position = {0.5, -0.5, 0};
-  rect_vertices[1].position = {0.5, 0.5, 0};
-  rect_vertices[2].position = {-0.5, -0.5, 0};
-  rect_vertices[3].position = {-0.5, 0.5, 0};
-
-  rect_vertices[0].color = {0, 0, 1, 1};
-  rect_vertices[1].color = {1, 0.0, 1, 1};
-  rect_vertices[2].color = {1, 0, 0, 1};
-  rect_vertices[3].color = {0, 1, 0, 1};
-
-  std::array<uint32_t, 6> rect_indices{};
-
-  rect_indices[0] = 0;
-  rect_indices[1] = 1;
-  rect_indices[2] = 2;
-
-  rect_indices[3] = 2;
-  rect_indices[4] = 1;
-  rect_indices[5] = 3;
-
-  m_Rectangle = UploadMesh(m_Allocator, rect_indices, rect_vertices);
-}
-
 void Renderer::AddGeometry(
     const std::vector<std::shared_ptr<MeshAsset>>& geometry) {
   for (const auto& mesh : geometry) m_Meshes.push_back(mesh);
 }
 
-void Renderer::SetMeshIndex(int index) {
-  m_MeshIndex = index;
+void Renderer::SetMeshIndex(int index) { m_MeshIndex = index; }
+
+void Renderer::Resize() {
+  global.context->Device.waitIdle();
+
+  global.swapchain->Shutdown();
+  global.swapchain->Init();
+
+  m_DrawImage.Destroy();
+  m_DepthImage.Destroy();
+
+  InitDrawTarget();
 }
 
 }  // namespace gfx

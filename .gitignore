@@ -7,3 +7,5 @@ build
 
 ./res/shaders/compiled
 *.spv
+
+imgui.ini

@@ -18,4 +18,6 @@ void init_globals() {
   global.renderer = std::make_unique<gfx::Renderer>();
 
   global.imgui = std::make_unique<gfx::ImGUILayer>();
+
+  global.camera = std::make_unique<util::Camera>();
 }

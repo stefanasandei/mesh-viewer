@@ -20,6 +20,7 @@ class PipelineBuilder {
   void SetCullMode(vk::CullModeFlags cull_mode, vk::FrontFace front_face);
   void SetMultisamplingNone();
   void DisableBlending();
+  void EnableBlendingAdditive();
   void SetColorAttachmentFormat(vk::Format format);
   void SetDepthFormat(vk::Format format);
   void DisableDepthTest();

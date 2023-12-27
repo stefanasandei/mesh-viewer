@@ -12,14 +12,19 @@
 #include "gfx/imgui_layer.hpp"
 #include "gfx/mesh.hpp"
 
+#include "util/camera.hpp"
+
 void init_globals();
 
 struct Global {
   std::unique_ptr<platform::Window> window;
+
   std::unique_ptr<gfx::Context> context;
   std::unique_ptr<gfx::Swapchain> swapchain;
   std::unique_ptr<gfx::Renderer> renderer;
   std::unique_ptr<gfx::ImGUILayer> imgui;
+
+  std::unique_ptr<util::Camera> camera;
 };
 
 extern Global& global;

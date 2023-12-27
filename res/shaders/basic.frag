@@ -13,5 +13,5 @@ void main() {
     float d = max(dot(normal, -lightDir), 0.0f);
 
     vec3 albedo = vec3(1.0, 0.0, 1.0);
-    outFragColor = vec4(d * albedo, 1.0f);
+    outFragColor = vec4(inColor, 1.0f);
 }
