@@ -35,3 +35,8 @@ target_link_libraries(lib INTERFACE imgui)
 target_include_directories(lib INTERFACE imgui)
 target_include_directories(imgui PUBLIC imgui glfw/include ${Vulkan_INCLUDE_DIRS})
 target_include_directories(lib INTERFACE imgui/backends)
+
+# fastgltf
+add_subdirectory(fastgltf)
+target_link_libraries(lib INTERFACE fastgltf)
+target_include_directories(lib INTERFACE fastgltf/include)

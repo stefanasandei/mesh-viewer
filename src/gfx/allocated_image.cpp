@@ -52,7 +52,10 @@ void AllocatedImage::Create(glm::ivec2 size, vk::Format chosen_format,
   view_info.subresourceRange.levelCount = 1;
   view_info.subresourceRange.baseArrayLayer = 0;
   view_info.subresourceRange.layerCount = 1;
-  view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  view_info.subresourceRange.aspectMask =
+      (chosen_format == vk::Format::eD32Sfloat
+           ? VK_IMAGE_ASPECT_DEPTH_BIT
+           : VK_IMAGE_ASPECT_COLOR_BIT);
 
   VkResult res = vkCreateImageView(m_Device, &view_info, nullptr, &View);
   if (res != VK_SUCCESS) {
@@ -66,13 +69,14 @@ void AllocatedImage::Destroy() {
   vmaDestroyImage(m_Allocator, Image, Allocation);
 }
 
-void AllocatedImage::SetAllocator(VmaAllocator const& allocator, const vk::Device& device) {
+void AllocatedImage::SetAllocator(VmaAllocator const& allocator,
+                                  const vk::Device& device) {
   m_Allocator = allocator;
   m_Device = device;
 }
 
 void CopyImageToImage(vk::CommandBuffer cmd, vk::Image source,
-                         vk::Image destination, vk::Extent3D image_size) {
+                      vk::Image destination, vk::Extent3D image_size) {
   VkImageBlit2 blitRegion{.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
                           .pNext = nullptr};
 

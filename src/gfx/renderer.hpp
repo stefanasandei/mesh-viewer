@@ -28,9 +28,14 @@ class Renderer {
   ~Renderer();
 
   void Draw();
+
   void InitGeometry();
+  void AddGeometry(const std::vector<std::shared_ptr<MeshAsset>>& geometry);
+  void SetMeshIndex(int index);
 
   void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
+
+  [[nodiscard]] VmaAllocator GetAllocator() const { return m_Allocator; }
 
  private:
   void InitCommands();
@@ -41,7 +46,7 @@ class Renderer {
 
   void DrawBackground(vk::CommandBuffer cmd, vk::Image target);
   void DrawImGui(vk::CommandBuffer cmd, vk::ImageView target);
-  void DrawGeometry(vk::CommandBuffer cmd, vk::ImageView target);
+  void DrawGeometry(vk::CommandBuffer cmd);
 
   FrameData& GetFrame();
 
@@ -53,7 +58,11 @@ class Renderer {
   VmaAllocator m_Allocator;
 
   AllocatedImage m_DrawImage;
+  AllocatedImage m_DepthImage;
+
   GPUMeshBuffers m_Rectangle;
+  std::vector<std::shared_ptr<MeshAsset>> m_Meshes;
+  int m_MeshIndex;
 
   vk::PipelineLayout m_GeometryPipelineLayout;
   vk::Pipeline m_GeometryPipeline;

@@ -11,10 +11,15 @@
 
 #include <imgui_impl_vulkan.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 namespace gfx {
 
 Renderer::Renderer() {
   m_FramesCount = 0;
+  m_MeshIndex = 0;
 
   InitCommands();
   InitSyncStructures();
@@ -77,7 +82,11 @@ void Renderer::Draw() {
                   vk::ImageLayout::eGeneral,
                   vk::ImageLayout::eColorAttachmentOptimal);
 
-  DrawGeometry(GetFrame().MainCmdBuffer, m_DrawImage.View);
+  TransitionImage(GetFrame().MainCmdBuffer, m_DepthImage.Image,
+                  vk::ImageLayout::eUndefined,
+                  vk::ImageLayout::eDepthAttachmentOptimal);
+
+  DrawGeometry(GetFrame().MainCmdBuffer);
 
   TransitionImage(GetFrame().MainCmdBuffer, m_DrawImage.Image,
                   vk::ImageLayout::eColorAttachmentOptimal,
@@ -235,7 +244,20 @@ void Renderer::InitDrawTarget() {
   m_DrawImage.Create(global.window->GetSize(), vk::Format::eR16G16B16A16Sfloat,
                      usages);
 
-  global.context->DeletionQueue.Push([&]() { m_DrawImage.Destroy(); });
+  m_DepthImage.Format = vk::Format::eD32Sfloat;
+  m_DepthImage.Extent = m_DrawImage.Extent;
+  VkImageUsageFlags depthImageUsages{};
+  depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+  m_DepthImage.SetAllocator(m_Allocator, global.context->Device);
+
+  m_DepthImage.Create(global.window->GetSize(), vk::Format::eD32Sfloat,
+                      depthImageUsages);
+
+  global.context->DeletionQueue.Push([&]() {
+    m_DrawImage.Destroy();
+    m_DepthImage.Destroy();
+  });
 }
 
 FrameData& Renderer::GetFrame() {
@@ -331,9 +353,9 @@ void Renderer::InitPipeline() {
                               vk::FrontFace::eClockwise);
   pipelineBuilder.SetMultisamplingNone();
   pipelineBuilder.DisableBlending();
-  pipelineBuilder.DisableDepthTest();
+  pipelineBuilder.EnableDepthTest(true, vk::CompareOp::eGreaterOrEqual);
   pipelineBuilder.SetColorAttachmentFormat(m_DrawImage.Format);
-  pipelineBuilder.SetDepthFormat(vk::Format::eUndefined);
+  pipelineBuilder.SetDepthFormat(m_DepthImage.Format);
 
   // finally build the pipeline
   m_GeometryPipeline = pipelineBuilder.build(global.context->Device);
@@ -347,12 +369,22 @@ void Renderer::InitPipeline() {
   });
 }
 
-void Renderer::DrawGeometry(vk::CommandBuffer cmd, vk::ImageView target) {
+void Renderer::DrawGeometry(vk::CommandBuffer cmd) {
   vk::RenderingAttachmentInfo color_attachment;
-  color_attachment.setImageView(target);
+  color_attachment.setImageView(m_DrawImage.View);
   color_attachment.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal);
   color_attachment.setLoadOp(vk::AttachmentLoadOp::eLoad);
   color_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
+
+  vk::ClearDepthStencilValue depth_clear;
+  depth_clear.setDepth(0.0f);
+
+  vk::RenderingAttachmentInfo depth_attachment;
+  depth_attachment.setImageView(m_DepthImage.View);
+  depth_attachment.setImageLayout(vk::ImageLayout::eDepthAttachmentOptimal);
+  depth_attachment.setLoadOp(vk::AttachmentLoadOp::eClear);
+  depth_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
+  depth_attachment.setClearValue(depth_clear);
 
   vk::Offset2D offset;
   offset.setX(0);
@@ -368,18 +400,29 @@ void Renderer::DrawGeometry(vk::CommandBuffer cmd, vk::ImageView target) {
   render_info.setViewMask(0);
   render_info.setColorAttachmentCount(1);
   render_info.setPColorAttachments(&color_attachment);
+  render_info.setPDepthAttachment(&depth_attachment);
 
   cmd.beginRendering(&render_info);
 
   cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_GeometryPipeline);
 
+  glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{0, 0, -4});
+  glm::mat4 projection = glm::perspective(
+      glm::radians(45.f),
+      (float)m_DrawImage.Extent.width / (float)m_DrawImage.Extent.height,
+      0.1f, 10000.0f);
+  projection[1][1] *= -1.0f;
+  glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, -5.0f, 0.0f));
+
   GPUDrawPushConstants push_constants{};
-  push_constants.worldMatrix = glm::mat4{1.f};
-  push_constants.vertexBuffer = m_Rectangle.vertexBufferAddress;
+  push_constants.worldMatrix = projection * view * model;
+  push_constants.vertexBuffer =
+      m_Meshes[m_MeshIndex]->meshBuffers.vertexBufferAddress;
 
   cmd.pushConstants(m_GeometryPipelineLayout, vk::ShaderStageFlagBits::eVertex,
                     0, sizeof(GPUDrawPushConstants), &push_constants);
-  cmd.bindIndexBuffer(m_Rectangle.indexBuffer.Buffer, 0,
+  cmd.bindIndexBuffer(m_Meshes[m_MeshIndex]->meshBuffers.indexBuffer.Buffer,
+                      m_Meshes[m_MeshIndex]->surfaces[0].startIndex,
                       vk::IndexType::eUint32);
 
   vk::Viewport viewport;
@@ -394,12 +437,12 @@ void Renderer::DrawGeometry(vk::CommandBuffer cmd, vk::ImageView target) {
 
   cmd.setScissor(0, 1, &scissor);
 
-  cmd.drawIndexed(6, 1, 0, 0, 0);
+  cmd.drawIndexed(m_Meshes[m_MeshIndex]->surfaces[0].count, 1,
+                  m_Meshes[m_MeshIndex]->surfaces[0].startIndex, 0, 0);
 
   cmd.endRendering();
 }
 
-// TODO: let the user pass the geometry
 void Renderer::InitGeometry() {
   std::array<Vertex, 4> rect_vertices{};
 
@@ -424,6 +467,15 @@ void Renderer::InitGeometry() {
   rect_indices[5] = 3;
 
   m_Rectangle = UploadMesh(m_Allocator, rect_indices, rect_vertices);
+}
+
+void Renderer::AddGeometry(
+    const std::vector<std::shared_ptr<MeshAsset>>& geometry) {
+  for (const auto& mesh : geometry) m_Meshes.push_back(mesh);
+}
+
+void Renderer::SetMeshIndex(int index) {
+  m_MeshIndex = index;
 }
 
 }  // namespace gfx

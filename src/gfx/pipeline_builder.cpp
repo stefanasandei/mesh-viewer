@@ -56,7 +56,7 @@ vk::Pipeline PipelineBuilder::build(vk::Device device) {
   return pipeline;
 }
 void PipelineBuilder::SetShaders(vk::ShaderModule vertex_shader,
-                                  vk::ShaderModule fragment_shader) {
+                                 vk::ShaderModule fragment_shader) {
   shader_stages.clear();
 
   vk::PipelineShaderStageCreateInfo vertex_stage_info;
@@ -85,7 +85,7 @@ void PipelineBuilder::SetPolygonMode(vk::PolygonMode mode) {
 }
 
 void PipelineBuilder::SetCullMode(vk::CullModeFlags cull_mode,
-                                    vk::FrontFace front_face) {
+                                  vk::FrontFace front_face) {
   rasterizer.setCullMode(cull_mode);
   rasterizer.setFrontFace(front_face);
 }
@@ -120,6 +120,19 @@ void PipelineBuilder::DisableDepthTest() {
   depth_stencil.setDepthTestEnable(VK_FALSE);
   depth_stencil.setDepthWriteEnable(VK_FALSE);
   depth_stencil.setDepthCompareOp(vk::CompareOp::eNever);
+  depth_stencil.setDepthBoundsTestEnable(VK_FALSE);
+  depth_stencil.setStencilTestEnable(VK_FALSE);
+  depth_stencil.setFront({});
+  depth_stencil.setBack({});
+  depth_stencil.setMinDepthBounds(0.0f);
+  depth_stencil.setMaxDepthBounds(1.0f);
+}
+
+void PipelineBuilder::EnableDepthTest(bool depth_write_enable,
+                                      vk::CompareOp op) {
+  depth_stencil.setDepthTestEnable(VK_TRUE);
+  depth_stencil.setDepthWriteEnable(depth_write_enable);
+  depth_stencil.setDepthCompareOp(op);
   depth_stencil.setDepthBoundsTestEnable(VK_FALSE);
   depth_stencil.setStencilTestEnable(VK_FALSE);
   depth_stencil.setFront({});

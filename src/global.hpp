@@ -10,6 +10,7 @@
 #include "gfx/swapchain.hpp"
 #include "gfx/renderer.hpp"
 #include "gfx/imgui_layer.hpp"
+#include "gfx/mesh.hpp"
 
 void init_globals();
 

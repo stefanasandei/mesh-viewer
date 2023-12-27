@@ -6,6 +6,7 @@
 
 #include "gfx/vulkan_utils.hpp"
 #include "gfx/allocated_buffer.hpp"
+#include "util/util.hpp"
 
 namespace gfx {
 
@@ -28,6 +29,20 @@ struct GPUDrawPushConstants {
   VkDeviceAddress vertexBuffer;
 };
 
+struct GeoSurface {
+  uint32_t startIndex;
+  uint32_t count;
+};
+
+struct MeshAsset {
+  std::string name;
+
+  std::vector<GeoSurface> surfaces;
+  GPUMeshBuffers meshBuffers;
+};
+
 GPUMeshBuffers UploadMesh(VmaAllocator allocator, std::span<uint32_t> indices, std::span<Vertex> vertices);
+
+std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGLTFModel(VmaAllocator allocator, std::filesystem::path filePath);
 
 }
