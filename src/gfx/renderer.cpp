@@ -8,12 +8,11 @@
 
 #include "gfx/pipeline_builder.hpp"
 #include "gfx/shader.hpp"
+#include "gfx/image.hpp"
 
+#include <stb_image.h>
 #include <imgui_impl_vulkan.h>
-
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 namespace gfx {
 
@@ -25,7 +24,10 @@ Renderer::Renderer() {
   InitSyncStructures();
   InitVma();
   InitDrawTarget();
+  InitDescriptors();
   InitPipeline();
+
+  m_StartTime = std::chrono::high_resolution_clock::now();
 }
 
 Renderer::~Renderer() {
@@ -51,6 +53,7 @@ void Renderer::Draw() {
                                                 true, 1000000000));
 
   GetFrame().DeletionQueue.Flush();
+  GetFrame().Descriptors.ClearPools();
 
   VK_CHECK(global.context->Device.resetFences(1, &GetFrame().RenderFence));
 
@@ -321,6 +324,30 @@ void Renderer::DrawImGui(vk::CommandBuffer cmd, vk::ImageView target) {
   cmd.endRendering();
 }
 
+void Renderer::InitDescriptors() {
+  for (int i = 0; i < FRAME_COUNT; i++) {
+    // create a descriptor pool
+    std::vector<PoolSizeRatio> frame_sizes = {
+        {vk::DescriptorType::eStorageImage, 3},
+        {vk::DescriptorType::eStorageBuffer, 3},
+        {vk::DescriptorType::eUniformBuffer, 3},
+        {vk::DescriptorType::eCombinedImageSampler, 4},
+    };
+
+    m_Frames[i].Descriptors.Init(global.context->Device, 1000, frame_sizes);
+
+    m_Frames[i].DeletionQueue.Push(
+        [&, i]() { m_Frames[i].Descriptors.DestroyPools(); });
+  }
+
+  {
+    DescriptorLayoutBuilder builder;
+    builder.add_binding(0, vk::DescriptorType::eCombinedImageSampler);
+    m_ImageDescriptorLayout = builder.build(global.context->Device,
+                                            vk::ShaderStageFlagBits::eFragment);
+  }
+}
+
 void Renderer::InitPipeline() {
   vk::ShaderModule triangle_vertex_shader;
   util::error::ErrNDie(
@@ -342,6 +369,8 @@ void Renderer::InitPipeline() {
   vk::PipelineLayoutCreateInfo layout_info;
   layout_info.setPushConstantRangeCount(1);
   layout_info.setPPushConstantRanges(&buffer_range);
+  layout_info.setSetLayoutCount(1);
+  layout_info.setPSetLayouts(&m_ImageDescriptorLayout);
 
   VK_CHECK(global.context->Device.createPipelineLayout(
       &layout_info, nullptr, &m_GeometryPipelineLayout));
@@ -409,6 +438,10 @@ void Renderer::DrawGeometry(vk::CommandBuffer cmd) {
 
   cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_GeometryPipeline);
 
+  cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                         m_GeometryPipelineLayout, 0, 1, &m_ImageSet, 0,
+                         nullptr);
+
   GPUDrawPushConstants push_constants{};
   push_constants.worldMatrix = global.camera->GetMVP();
   push_constants.vertexBuffer =
@@ -455,6 +488,40 @@ void Renderer::Resize() {
   m_DepthImage.Destroy();
 
   InitDrawTarget();
+}
+
+float Renderer::GetFPS() const {
+  auto current_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+                      current_time - m_StartTime)
+                      .count();
+  return (float)m_FramesCount / duration;
+}
+
+void Renderer::AddTexture(const std::string& filepath) {
+  int width, height, comp;
+  unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &comp, 4);
+
+  m_Textures.resize(2);
+  m_Textures[0] = std::make_unique<AllocatedImage>(
+      CreateImage(data, {width, height}, vk::Format::eR8G8B8A8Unorm,
+                  VK_IMAGE_USAGE_SAMPLED_BIT));
+
+  vk::SamplerCreateInfo info;
+  info.setMagFilter(vk::Filter::eLinear);
+  info.setMinFilter(vk::Filter::eLinear);
+
+  VK_CHECK(
+      global.context->Device.createSampler(&info, nullptr, &m_LinearSampler));
+
+  m_ImageSet = GetFrame().Descriptors.Allocate(m_ImageDescriptorLayout);
+  {
+    DescriptorWriter writer;
+    writer.WriteImage(0, m_Textures[0]->View, m_LinearSampler,
+                      vk::ImageLayout::eShaderReadOnlyOptimal,
+                      vk::DescriptorType::eCombinedImageSampler);
+    writer.UpdateSet(global.context->Device, m_ImageSet);
+  }
 }
 
 }  // namespace gfx

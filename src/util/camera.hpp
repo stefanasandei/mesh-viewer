@@ -18,7 +18,7 @@ class Camera {
   [[nodiscard]] glm::mat4 GetMVP() const;
 
  public:
-  float angleX = 0.0f, angleY = 0.0f, angleZ = 0.0f;
+  float angleX = 270.0f, angleY = 0.0f, angleZ = 0.0f;
   glm::mat4 model, view, projection;
 };
 

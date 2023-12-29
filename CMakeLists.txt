@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.25)
 project(mesh_viewer)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -34,7 +34,12 @@ add_executable(mesh_viewer src/main.cpp
         src/gfx/mesh.hpp
         src/gfx/mesh.cpp
         src/util/camera.hpp
-        src/util/camera.cpp)
+        src/util/camera.cpp
+        src/gfx/descriptors.hpp
+        src/gfx/descriptors.cpp
+        src/gfx/image.hpp
+        src/gfx/image.cpp
+        src/gfx/stb_impl.cpp)
 
 add_subdirectory(lib)
 

@@ -102,8 +102,22 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGLTFModel(
 
   std::vector<std::shared_ptr<MeshAsset>> meshes;
 
-  // use the same vectors for all meshes so that the memory doesnt reallocate as
-  // often
+  for(fastgltf::Image& img : gltf.images) {
+
+  }
+
+  for(fastgltf::Sampler sampler: gltf.samplers) {
+
+  }
+
+  for(fastgltf::Texture& tex : gltf.textures) {
+
+  }
+
+  for(fastgltf::Material& mat : gltf.materials) {
+
+  }
+
   std::vector<uint32_t> indices;
   std::vector<Vertex> vertices;
   for (fastgltf::Mesh& mesh : gltf.meshes) {
@@ -116,7 +130,7 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGLTFModel(
     vertices.clear();
 
     for (auto&& p : mesh.primitives) {
-      GeoSurface newSurface;
+      GeoSurface newSurface{};
       newSurface.startIndex = (uint32_t)indices.size();
       newSurface.count =
           (uint32_t)gltf.accessors[p.indicesAccessor.value()].count;

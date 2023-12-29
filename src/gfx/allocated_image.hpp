@@ -34,6 +34,6 @@ class AllocatedImage {
 };
 
 void CopyImageToImage(vk::CommandBuffer cmd, vk::Image source,
-                         vk::Image destination, vk::Extent3D image_size);
+                      vk::Image destination, vk::Extent3D image_size);
 
 }  // namespace gfx

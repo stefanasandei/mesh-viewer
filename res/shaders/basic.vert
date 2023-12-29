@@ -1,4 +1,5 @@
 #version 460
+
 #extension GL_EXT_buffer_reference : require
 
 layout (location = 0) out vec3 outColor;
