@@ -13,7 +13,7 @@ namespace gfx {
 
 ImGUILayer::ImGUILayer() { init(); }
 
-ImGUILayer::~ImGUILayer() { }
+ImGUILayer::~ImGUILayer() {}
 
 void ImGUILayer::init() {
   VkDescriptorPoolSize pool_sizes[] = {
@@ -40,7 +40,13 @@ void ImGUILayer::init() {
   VK_CHECK(global.context->Device.createDescriptorPool(&pool_info, nullptr,
                                                        &imgui_pool));
 
+  IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+
+  ImGuiIO& io = ImGui::GetIO();
+  (void)io;
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
   ImGui_ImplGlfw_InitForVulkan(global.window->GetNative(), true);
 
@@ -61,9 +67,7 @@ void ImGUILayer::init() {
   global.renderer->ImmediateSubmit(
       [&](VkCommandBuffer cmd) { ImGui_ImplVulkan_CreateFontsTexture(); });
 
-  global.context->DeletionQueue.Push([&]() {
-    ImGui_ImplVulkan_Shutdown();
-  });
+  global.context->DeletionQueue.Push([&]() { ImGui_ImplVulkan_Shutdown(); });
 }
 
 void ImGUILayer::AddPanel(const std::function<void()>& draw_fn) {
@@ -79,6 +83,13 @@ void ImGUILayer::Draw() {
   m_Panels.clear();
 
   ImGui::Render();
+
+  ImGuiIO& io = ImGui::GetIO();
+  (void)io;
+  if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+    ImGui::UpdatePlatformWindows();
+    ImGui::RenderPlatformWindowsDefault();
+  }
 }
 
 }  // namespace gfx
